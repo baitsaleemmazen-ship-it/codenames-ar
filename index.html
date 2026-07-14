@@ -335,9 +335,14 @@ function handle(msg){
   else if(msg.type==='state'){
     const s=msg.state;
     myRole=s.myRole;
-    updateWaiting(s);
-    if(s.winner){renderResult(s);showScreen('result')}
-    else if(s.phase==='hint'||s.phase==='guess'){renderGame(s);showScreen('game')}
+    if(s.phase==='waiting'){
+      updateWaiting(s);
+      showScreen('waiting');
+    } else if(s.winner){
+      renderResult(s);showScreen('result');
+    } else if(s.phase==='hint'||s.phase==='guess'){
+      renderGame(s);showScreen('game');
+    }
   }
 }
 
