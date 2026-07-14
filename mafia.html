@@ -201,7 +201,8 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);displ
     <div class="how-row"><div class="ic">☀️</div><p>النهار: الكل يتكلم ويصوتون على من يتهمونه</p></div>
     <div class="how-row"><div class="ic">💀</div><p>لما تموت تشوف هوية قاتلك في ملف الميت</p></div>
   </div>
-  <button class="btn-start" onclick="showScreen('setup')">ابدأ اللعبة 🌑</button>
+  <button class="btn-start" onclick="showScreen('setup')">ابدأ لعبة جديدة 🌑</button>
+  <button class="btn-start" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);font-size:1rem;padding:14px" onclick="showOv('ovJoin')">🔗 انضم لغرفة موجودة</button>
 </div>
 
 <!-- SETUP -->
@@ -407,11 +408,13 @@ document.getElementById('playersWrap').addEventListener('input',updateRolesPrevi
 // WS CONNECTION
 // ════════════════════════════
 function connect(cb){
+  if(ws && ws.readyState===1){ cb(); return; }
   const proto=location.protocol==='https:'?'wss':'ws';
   ws=new WebSocket(`${proto}://${location.host}`);
-  ws.onopen=cb;
+  ws.onopen=()=>{ setTimeout(cb, 100); };
   ws.onmessage=e=>handleMsg(JSON.parse(e.data));
-  ws.onclose=()=>toast('انقطع الاتصال');
+  ws.onerror=()=>toast('خطأ في الاتصال');
+  ws.onclose=()=>{ ws=null; toast('انقطع الاتصال'); };
 }
 
 function send(obj){if(ws&&ws.readyState===1)ws.send(JSON.stringify(obj))}
