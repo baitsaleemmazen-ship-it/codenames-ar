@@ -8,9 +8,7 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
-app.use(express.static(__dirname));
-app.use('/public', express.static(path.join(__dirname, 'public')));
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+app.use(express.static(path.join(__dirname, 'public')));
 
 // ── WORDS ──
 const WORDS = [
@@ -128,6 +126,7 @@ wss.on('connection', ws => {
       let code;
       do { code = genCode(); } while (rooms[code]);
       rooms[code] = createGame();
+      rooms[code].phase = 'waiting'; // hold until host starts
       let role = msg.role || 'red-cap';
       if (role === 'random') role = ['red-cap','red','blue-cap','blue'][Math.floor(Math.random()*4)];
       rooms[code].players[playerId] = { name: msg.name || 'لاعب', role };
@@ -219,6 +218,7 @@ wss.on('connection', ws => {
       const players = rooms[code].players;
       rooms[code] = createGame();
       rooms[code].players = players;
+      rooms[code].phase = 'hint'; // actually start the game
       broadcast(code);
     }
   });
