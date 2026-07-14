@@ -360,9 +360,18 @@ wss.on('connection', ws => {
         const names = msg.names || [];
         if (names.length < 3) return ws.send(JSON.stringify({ type: 'error', msg: 'أقل عدد ٣ لاعبين' }));
         const code = genMafiaCode();
-        const shuffledNames = msg.random ? shuffle(names) : names;
-        const roles = shuffle(getRolesForCount(shuffledNames.length));
-        const players = shuffledNames.map((name, i) => ({ id: uuid(), name, role: roles[i], alive: true, ready: false }));
+        // Build roles array from custom counts sent by client
+        let roles = [];
+        if (msg.roles) {
+          Object.entries(msg.roles).forEach(([role, count]) => {
+            for (let i = 0; i < count; i++) roles.push(role);
+          });
+        } else {
+          roles = getRolesForCount(names.length);
+        }
+        roles = shuffle(roles);
+        const shuffledNames = shuffle(names);
+        const players = shuffledNames.map((name, i) => ({ id: uuid(), name, role: roles[i] || 'citizen', alive: true, ready: false }));
         players[0].id = pid;
         mafiaRooms[code] = { code, players, phase: 'waiting', round: 1, messages: [], votes: {}, voteCount: {}, guardUsed: false, hostId: pid, nightActions: {} };
         ws._mafia.code = code;
