@@ -9,8 +9,9 @@ const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
 app.use(express.static(__dirname));
-app.use('/public', express.static(path.join(__dirname, 'public')));
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+app.get('/codenames', (req, res) => res.sendFile(path.join(__dirname, 'codenames.html')));
+app.get('/mafia', (req, res) => res.sendFile(path.join(__dirname, 'mafia.html')));
 
 // ── WORDS ──
 const WORDS = [
