@@ -8,9 +8,7 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
-app.use(express.static(__dirname));
-app.use('/public', express.static(path.join(__dirname, 'public')));
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+app.use(express.static(path.join(__dirname, 'public')));
 
 // ── WORDS ──
 const WORDS = [
@@ -115,132 +113,6 @@ function genCode() {
 }
 
 // ── WS ──
-wss.on('connection', ws => {
-  const playerId = uuid();
-  ws._meta = { playerId, roomCode: null };
-
-  ws.on('message', raw => {
-    let msg;
-    try { msg = JSON.parse(raw); } catch { return; }
-    const meta = ws._meta;
-
-    if (msg.type === 'create') {
-      let code;
-      do { code = genCode(); } while (rooms[code]);
-      rooms[code] = createGame();
-      rooms[code].phase = 'waiting'; // hold until host starts
-      let role = msg.role || 'red-cap';
-      if (role === 'random') role = ['red-cap','red','blue-cap','blue'][Math.floor(Math.random()*4)];
-      rooms[code].players[playerId] = { name: msg.name || 'لاعب', role };
-      meta.roomCode = code;
-      ws.send(JSON.stringify({ type: 'created', code, playerId }));
-      broadcast(code);
-    }
-
-    else if (msg.type === 'join') {
-      const code = msg.code?.toUpperCase();
-      if (!rooms[code]) {
-        ws.send(JSON.stringify({ type: 'error', msg: 'الغرفة مو موجودة' }));
-        return;
-      }
-      let role = msg.role || 'red';
-      if (role === 'random') {
-        // assign role to balance teams
-        const players = Object.values(rooms[code].players);
-        const roles = ['red-cap','red','blue-cap','blue'];
-        const used = players.map(p=>p.role);
-        const missing = roles.filter(r=>!used.includes(r));
-        role = missing.length ? missing[Math.floor(Math.random()*missing.length)] : roles[Math.floor(Math.random()*roles.length)];
-      }
-      rooms[code].players[playerId] = { name: msg.name || 'لاعب', role };
-      meta.roomCode = code;
-      ws.send(JSON.stringify({ type: 'joined', code, playerId }));
-      broadcast(code);
-    }
-
-    else if (msg.type === 'hint') {
-      const g = rooms[meta.roomCode];
-      if (!g || g.phase !== 'hint') return;
-      const myRole = g.players[playerId]?.role;
-      if (myRole !== g.team + '-cap') return;
-      g.hint = msg.word;
-      g.hintN = msg.n;
-      g.guessLeft = msg.n === 0 ? 999 : msg.n + 1;
-      g.phase = 'guess';
-      broadcast(meta.roomCode);
-    }
-
-    else if (msg.type === 'guess') {
-      const g = rooms[meta.roomCode];
-      if (!g || g.phase !== 'guess') return;
-      const myRole = g.players[playerId]?.role;
-      // only current team non-cap can guess
-      if (myRole !== g.team) return;
-      const i = msg.index;
-      if (g.revealed[i]) return;
-      g.revealed[i] = true;
-      const t = g.types[i];
-      if (t === 'red') g.redLeft--;
-      if (t === 'blue') g.blueLeft--;
-
-      if (t === 'assassin') {
-        g.winner = g.team === 'red' ? 'blue' : 'red';
-        g.phase = 'end';
-      } else if (g.redLeft === 0) {
-        g.winner = 'red'; g.phase = 'end';
-      } else if (g.blueLeft === 0) {
-        g.winner = 'blue'; g.phase = 'end';
-      } else if (t !== g.team) {
-        // wrong — switch
-        g.team = g.team === 'red' ? 'blue' : 'red';
-        g.phase = 'hint'; g.hint = ''; g.guessLeft = 0;
-      } else {
-        if (g.guessLeft !== 999) {
-          g.guessLeft--;
-          if (g.guessLeft <= 0) {
-            g.team = g.team === 'red' ? 'blue' : 'red';
-            g.phase = 'hint'; g.hint = ''; g.guessLeft = 0;
-          }
-        }
-      }
-      broadcast(meta.roomCode);
-    }
-
-    else if (msg.type === 'pass') {
-      const g = rooms[meta.roomCode];
-      if (!g || g.phase !== 'guess') return;
-      g.team = g.team === 'red' ? 'blue' : 'red';
-      g.phase = 'hint'; g.hint = ''; g.guessLeft = 0;
-      broadcast(meta.roomCode);
-    }
-
-    else if (msg.type === 'restart') {
-      const code = meta.roomCode;
-      if (!rooms[code]) return;
-      const players = rooms[code].players;
-      rooms[code] = createGame();
-      rooms[code].players = players;
-      rooms[code].phase = 'hint'; // actually start the game
-      broadcast(code);
-    }
-  });
-
-  ws.on('close', () => {
-    const { roomCode, playerId } = ws._meta;
-    if (roomCode && rooms[roomCode]) {
-      delete rooms[roomCode].players[playerId];
-      if (Object.keys(rooms[roomCode].players).length === 0) {
-        delete rooms[roomCode];
-      } else {
-        broadcast(roomCode);
-      }
-    }
-  });
-});
-
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`✅ codenames-ar on :${PORT}`));
-
 // ═══════════════════════════════════════════════
 //  MAFIA GAME
 // ═══════════════════════════════════════════════
@@ -466,130 +338,208 @@ async function endGame(room,winner){
   });
 }
 
-// ── MAFIA WS HANDLER ──
-wss.on('connection_mafia_extension', ()=>{}); // placeholder
 
-// Extend existing WS handler
-const origOnMsg = wss.listeners ? null : null;
+// ── SINGLE UNIFIED WS HANDLER ──
 wss.on('connection', ws => {
-  ws._mafia={playerId:uuid(),code:null};
+  const playerId = uuid();
+  ws._meta = { playerId, roomCode: null };
+  ws._mafia = { playerId, code: null };
 
-  ws.on('message', async raw=>{
+  ws.on('message', async raw => {
     let msg;
-    try{msg=JSON.parse(raw)}catch{return}
-    if(!msg.type?.startsWith('mafia_'))return;
+    try { msg = JSON.parse(raw); } catch { return; }
 
-    const pid=ws._mafia.playerId;
+    // ── MAFIA MESSAGES ──
+    if (msg.type?.startsWith('mafia_')) {
+      const pid = ws._mafia.playerId;
 
-    if(msg.type==='mafia_create'){
-      const names=msg.names||[];
-      if(names.length<3)return ws.send(JSON.stringify({type:'error',msg:'أقل عدد ٣ لاعبين'}));
-      const code=genMafiaCode();
-      const shuffledNames=msg.random?shuffle(names):names;
-      const roles=shuffle(getRolesForCount(shuffledNames.length));
-      const players=shuffledNames.map((name,i)=>({
-        id:uuid(),name,role:roles[i],alive:true,ready:false,
-      }));
-      // Creator gets first player slot
-      players[0].id=pid;
-      mafiaRooms[code]={code,players,phase:'waiting',round:1,messages:[],votes:{},voteCount:{},guardUsed:false,hostId:pid,nightActions:{}};
-      ws._mafia.code=code;
-      ws.send(JSON.stringify({type:'mafia_created',code,playerId:pid}));
-      ws.send(JSON.stringify({type:'mafia_waiting',players:players.map(p=>({id:p.id,name:p.name}))}));
-    }
+      if (msg.type === 'mafia_create') {
+        const names = msg.names || [];
+        if (names.length < 3) return ws.send(JSON.stringify({ type: 'error', msg: 'أقل عدد ٣ لاعبين' }));
+        const code = genMafiaCode();
+        const shuffledNames = msg.random ? shuffle(names) : names;
+        const roles = shuffle(getRolesForCount(shuffledNames.length));
+        const players = shuffledNames.map((name, i) => ({ id: uuid(), name, role: roles[i], alive: true, ready: false }));
+        players[0].id = pid;
+        mafiaRooms[code] = { code, players, phase: 'waiting', round: 1, messages: [], votes: {}, voteCount: {}, guardUsed: false, hostId: pid, nightActions: {} };
+        ws._mafia.code = code;
+        ws.send(JSON.stringify({ type: 'mafia_created', code, playerId: pid }));
+        ws.send(JSON.stringify({ type: 'mafia_waiting', players: players.map(p => ({ id: p.id, name: p.name })) }));
+      }
 
-    else if(msg.type==='mafia_start'){
-      const room=mafiaRooms[ws._mafia.code];
-      if(!room||room.hostId!==pid)return;
-      room.phase='roles';
+      else if (msg.type === 'mafia_join') {
+        const code = msg.code?.toUpperCase();
+        if (!mafiaRooms[code]) return ws.send(JSON.stringify({ type: 'error', msg: 'الغرفة مو موجودة' }));
+        const room = mafiaRooms[code];
+        // find unassigned player slot by name match
+        let player = room.players.find(p => p.name === msg.name && !p.connected);
+        if (!player) player = room.players.find(p => !p.connected);
+        if (player) {
+          player.id = pid;
+          player.connected = true;
+        }
+        ws._mafia.code = code;
+        ws.send(JSON.stringify({ type: 'mafia_joined', code, playerId: pid }));
+        ws.send(JSON.stringify({ type: 'mafia_waiting', players: room.players.map(p => ({ id: p.id, name: p.name })) }));
+      }
 
-      // Send each player their role
-      room.players.forEach(p=>{
-        const mafiaTeam=p.role==='mafia'?room.players.filter(x=>x.role==='mafia').map(x=>x.name):[];
-        // Find ws for this player
-        wss.clients.forEach(client=>{
-          if(client._mafia?.playerId===p.id&&client.readyState===1){
-            client.send(JSON.stringify({type:'mafia_role',role:p.role,mafiaTeam}));
-          }
+      else if (msg.type === 'mafia_start') {
+        const room = mafiaRooms[ws._mafia.code];
+        if (!room || room.hostId !== pid) return;
+        room.phase = 'roles';
+        room.players.forEach(p => {
+          const mafiaTeam = p.role === 'mafia' ? room.players.filter(x => x.role === 'mafia').map(x => x.name) : [];
+          wss.clients.forEach(client => {
+            if (client._mafia?.playerId === p.id && client.readyState === 1) {
+              client.send(JSON.stringify({ type: 'mafia_role', role: p.role, mafiaTeam }));
+            }
+          });
         });
-      });
-
-      // Also send to creator
-      const me=room.players.find(p=>p.id===pid);
-      if(me){
-        const mafiaTeam=me.role==='mafia'?room.players.filter(x=>x.role==='mafia').map(x=>x.name):[];
-        ws.send(JSON.stringify({type:'mafia_role',role:me.role,mafiaTeam}));
+        const me = room.players.find(p => p.id === pid);
+        if (me) {
+          const mafiaTeam = me.role === 'mafia' ? room.players.filter(x => x.role === 'mafia').map(x => x.name) : [];
+          ws.send(JSON.stringify({ type: 'mafia_role', role: me.role, mafiaTeam }));
+        }
       }
+
+      else if (msg.type === 'mafia_ready') {
+        const room = mafiaRooms[ws._mafia.code];
+        if (!room) return;
+        const p = room.players.find(x => x.id === pid);
+        if (p) p.ready = true;
+        if (room.players.every(x => x.ready) && room.phase === 'roles') await startNight(room);
+      }
+
+      else if (msg.type === 'mafia_night_action') {
+        const room = mafiaRooms[ws._mafia.code];
+        if (!room || room.phase !== 'night') return;
+        const me = room.players.find(p => p.id === pid);
+        if (!me || !me.alive) return;
+        if (me.role === 'mafia') room.nightActions.mafia = msg.targetId;
+        else if (me.role === 'detective') room.nightActions.detective = msg.targetId;
+        else if (me.role === 'doctor') room.nightActions.doctor = msg.targetId;
+        else if (me.role === 'guard' && !room.guardUsed) room.nightActions.guard = msg.targetId;
+        const alive = room.players.filter(p => p.alive);
+        const hasDetective = alive.some(p => p.role === 'detective');
+        const hasDoctor = alive.some(p => p.role === 'doctor');
+        const hasGuard = alive.some(p => p.role === 'guard') && !room.guardUsed;
+        if (room.nightActions.mafia && (!hasDetective || room.nightActions.detective) && (!hasDoctor || room.nightActions.doctor) && (!hasGuard || room.nightActions.guard)) {
+          await processNightEnd(room);
+        }
+      }
+
+      else if (msg.type === 'mafia_start_vote') {
+        const room = mafiaRooms[ws._mafia.code];
+        if (!room || room.hostId !== pid) return;
+        room.phase = 'vote'; room.votes = {}; room.voteCount = {};
+        room.messages.push({ type: 'sys', text: '━━━ 🗳️ التصويت ━━━' });
+        await aiMessage(room, 'أنت هوست لعبة مافيا بالعربي. حان وقت التصويت. اكتب دعوة التصويت (جملة واحدة درامية).');
+      }
+
+      else if (msg.type === 'mafia_vote') {
+        const room = mafiaRooms[ws._mafia.code];
+        if (!room || room.phase !== 'vote') return;
+        const me = room.players.find(p => p.id === pid);
+        if (!me || !me.alive || room.votes[pid]) return;
+        room.votes[pid] = msg.targetId;
+        room.voteCount = {};
+        Object.values(room.votes).forEach(tid => { room.voteCount[tid] = (room.voteCount[tid] || 0) + 1; });
+        broadcastMafia(room.code);
+        if (Object.keys(room.votes).length >= room.players.filter(p => p.alive).length) await processVoteEnd(room);
+      }
+
+      return;
     }
 
-    else if(msg.type==='mafia_ready'){
-      const room=mafiaRooms[ws._mafia.code];
-      if(!room)return;
-      const p=room.players.find(x=>x.id===pid);
-      if(p)p.ready=true;
-      const allReady=room.players.every(x=>x.ready);
-      if(allReady&&room.phase==='roles'){
-        await startNight(room);
-      }
+    // ── CODENAMES MESSAGES ──
+    const meta = ws._meta;
+
+    if (msg.type === 'create') {
+      let code;
+      do { code = genCode(); } while (rooms[code]);
+      rooms[code] = createGame();
+      rooms[code].phase = 'waiting';
+      let role = msg.role || 'red-cap';
+      if (role === 'random') role = ['red-cap', 'red', 'blue-cap', 'blue'][Math.floor(Math.random() * 4)];
+      rooms[code].players[playerId] = { name: msg.name || 'لاعب', role };
+      meta.roomCode = code;
+      ws.send(JSON.stringify({ type: 'created', code, playerId }));
+      broadcast(code);
     }
 
-    else if(msg.type==='mafia_night_action'){
-      const room=mafiaRooms[ws._mafia.code];
-      if(!room||room.phase!=='night')return;
-      const me=room.players.find(p=>p.id===pid);
-      if(!me||!me.alive)return;
-      const role=me.role;
-      if(role==='mafia') room.nightActions.mafia=msg.targetId;
-      else if(role==='detective') room.nightActions.detective=msg.targetId;
-      else if(role==='doctor') room.nightActions.doctor=msg.targetId;
-      else if(role==='guard'&&!room.guardUsed) room.nightActions.guard=msg.targetId;
-
-      // Check if all special roles acted
-      const alive=room.players.filter(p=>p.alive);
-      const hasMafia=alive.some(p=>p.role==='mafia');
-      const hasDetective=alive.some(p=>p.role==='detective');
-      const hasDoctor=alive.some(p=>p.role==='doctor');
-      const hasGuard=alive.some(p=>p.role==='guard')&&!room.guardUsed;
-
-      const mafiaActed=room.nightActions.mafia;
-      const detActed=!hasDetective||room.nightActions.detective;
-      const docActed=!hasDoctor||room.nightActions.doctor;
-      const guardActed=!hasGuard||room.nightActions.guard;
-
-      if(mafiaActed&&detActed&&docActed&&guardActed){
-        await processNightEnd(room);
+    else if (msg.type === 'join') {
+      const code = msg.code?.toUpperCase();
+      if (!rooms[code]) { ws.send(JSON.stringify({ type: 'error', msg: 'الغرفة مو موجودة' })); return; }
+      let role = msg.role || 'red';
+      if (role === 'random') {
+        const players = Object.values(rooms[code].players);
+        const roles = ['red-cap', 'red', 'blue-cap', 'blue'];
+        const used = players.map(p => p.role);
+        const missing = roles.filter(r => !used.includes(r));
+        role = missing.length ? missing[Math.floor(Math.random() * missing.length)] : roles[Math.floor(Math.random() * roles.length)];
       }
+      rooms[code].players[playerId] = { name: msg.name || 'لاعب', role };
+      meta.roomCode = code;
+      ws.send(JSON.stringify({ type: 'joined', code, playerId }));
+      broadcast(code);
     }
 
-    else if(msg.type==='mafia_start_vote'){
-      const room=mafiaRooms[ws._mafia.code];
-      if(!room||room.hostId!==pid)return;
-      room.phase='vote';
-      room.votes={};room.voteCount={};
-      room.messages.push({type:'sys',text:'━━━ 🗳️ التصويت ━━━'});
-      await aiMessage(room,'أنت هوست لعبة مافيا بالعربي. حان وقت التصويت. اكتب دعوة التصويت (جملة واحدة درامية).');
+    else if (msg.type === 'hint') {
+      const g = rooms[meta.roomCode];
+      if (!g || g.phase !== 'hint') return;
+      if (g.players[playerId]?.role !== g.team + '-cap') return;
+      g.hint = msg.word; g.hintN = msg.n;
+      g.guessLeft = msg.n === 0 ? 999 : msg.n + 1;
+      g.phase = 'guess';
+      broadcast(meta.roomCode);
     }
 
-    else if(msg.type==='mafia_vote'){
-      const room=mafiaRooms[ws._mafia.code];
-      if(!room||room.phase!=='vote')return;
-      const me=room.players.find(p=>p.id===pid);
-      if(!me||!me.alive||room.votes[pid])return;
-      room.votes[pid]=msg.targetId;
-      // Update vote count
-      room.voteCount={};
-      Object.values(room.votes).forEach(tid=>{room.voteCount[tid]=(room.voteCount[tid]||0)+1;});
-      broadcastMafia(room.code);
+    else if (msg.type === 'guess') {
+      const g = rooms[meta.roomCode];
+      if (!g || g.phase !== 'guess') return;
+      if (g.players[playerId]?.role !== g.team) return;
+      const i = msg.index;
+      if (g.revealed[i]) return;
+      g.revealed[i] = true;
+      const t = g.types[i];
+      if (t === 'red') g.redLeft--;
+      if (t === 'blue') g.blueLeft--;
+      if (t === 'assassin') { g.winner = g.team === 'red' ? 'blue' : 'red'; g.phase = 'end'; }
+      else if (g.redLeft === 0) { g.winner = 'red'; g.phase = 'end'; }
+      else if (g.blueLeft === 0) { g.winner = 'blue'; g.phase = 'end'; }
+      else if (t !== g.team) { g.team = g.team === 'red' ? 'blue' : 'red'; g.phase = 'hint'; g.hint = ''; g.guessLeft = 0; }
+      else if (g.guessLeft !== 999) { g.guessLeft--; if (g.guessLeft <= 0) { g.team = g.team === 'red' ? 'blue' : 'red'; g.phase = 'hint'; g.hint = ''; g.guessLeft = 0; } }
+      broadcast(meta.roomCode);
+    }
 
-      // Check if all voted
-      const aliveCount=room.players.filter(p=>p.alive).length;
-      if(Object.keys(room.votes).length>=aliveCount){
-        await processVoteEnd(room);
-      }
+    else if (msg.type === 'pass') {
+      const g = rooms[meta.roomCode];
+      if (!g || g.phase !== 'guess') return;
+      g.team = g.team === 'red' ? 'blue' : 'red';
+      g.phase = 'hint'; g.hint = ''; g.guessLeft = 0;
+      broadcast(meta.roomCode);
+    }
+
+    else if (msg.type === 'restart') {
+      const code = meta.roomCode;
+      if (!rooms[code]) return;
+      const players = rooms[code].players;
+      rooms[code] = createGame();
+      rooms[code].players = players;
+      rooms[code].phase = 'hint';
+      broadcast(code);
     }
   });
 
-  ws.on('close',()=>{
-    // handled by codenames close handler
+  ws.on('close', () => {
+    const { roomCode, playerId } = ws._meta;
+    if (roomCode && rooms[roomCode]) {
+      delete rooms[roomCode].players[playerId];
+      if (Object.keys(rooms[roomCode].players).length === 0) delete rooms[roomCode];
+      else broadcast(roomCode);
+    }
   });
 });
+
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => console.log(`✅ games server on :${PORT}`));
