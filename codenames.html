@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>العملاء السريون</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#0f0e0b;--bg2:#181610;--bg3:#1e1c14;
+  --gold:#c9a84c;--gold2:#e8c96a;--gold-dim:rgba(201,168,76,0.12);
+  --red:#c0392b;--red2:#e74c3c;--blue:#1a5276;--blue2:#2980b9;
+  --text:#f0ead6;--text2:#9a8f6f;--text3:#5a5040;
+  --border:rgba(201,168,76,0.12);--border2:rgba(255,255,255,0.06);
+  --nc:#2a2820;--nr:#383530;
+}
+html,body{height:100%;overflow:hidden}
+body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column}
+.hidden{display:none!important}
+.screen{display:none;flex:1;flex-direction:column;overflow:hidden}
+.screen.active{display:flex}
+
+/* LOBBY */
+#lobby{align-items:center;justify-content:center;gap:22px;padding:28px 22px;overflow-y:auto;background:radial-gradient(ellipse 80% 60% at 50% 20%,#231f13,#0f0e0b 70%)}
+.logo{text-align:center}
+.logo h1{font-size:clamp(2.4rem,8vw,4.5rem);font-weight:900;color:var(--gold2);letter-spacing:-2px;line-height:.95}
+.card{background:var(--bg3);border:1px solid var(--border);border-radius:16px;padding:20px;width:100%;max-width:380px}
+.card h3{color:var(--gold);font-size:.85rem;letter-spacing:1px;margin-bottom:14px}
+.inp{background:rgba(255,255,255,.04);border:1px solid var(--border2);border-radius:9px;color:var(--text);font-family:'Cairo',sans-serif;font-size:.95rem;padding:11px 14px;width:100%;margin-bottom:10px;outline:none;transition:border-color .2s}
+.inp:focus{border-color:var(--gold)}
+.inp::placeholder{color:var(--text3)}
+.role-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.role-opt{background:rgba(255,255,255,.04);border:1.5px solid var(--border2);border-radius:10px;padding:12px 8px;text-align:center;cursor:pointer;transition:all .2s}
+.role-opt.sel-red{border-color:var(--red2);background:rgba(192,57,43,.15)}
+.role-opt.sel-blue{border-color:var(--blue2);background:rgba(26,82,118,.15)}
+.role-opt .ri{font-size:1.4rem;margin-bottom:4px}
+.role-opt .rl{font-size:.78rem;color:var(--text2);font-weight:600}
+.role-opt .rs{font-size:.68rem;color:var(--text3)}
+.btn{font-family:'Cairo',sans-serif;font-weight:700;border:none;border-radius:10px;cursor:pointer;padding:13px 24px;font-size:.95rem;transition:transform .12s;width:100%}
+.btn:active{transform:scale(.96)}
+.btn-gold{background:var(--gold);color:#0f0e0b;font-weight:900}
+.btn-outline{background:rgba(255,255,255,.05);color:var(--text2);border:1px solid var(--border2)}
+.divider{display:flex;align-items:center;gap:10px;width:100%;max-width:380px}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border)}
+.divider span{color:var(--text3);font-size:.8rem}
+
+/* random toggle */
+.random-toggle{display:flex;align-items:center;gap:10px;padding:10px 0;margin-bottom:4px;cursor:pointer}
+.toggle-track{width:40px;height:22px;border-radius:11px;background:var(--border2);border:1px solid var(--border2);position:relative;transition:background .2s;flex-shrink:0}
+.toggle-track.on{background:var(--gold);border-color:var(--gold)}
+.toggle-thumb{width:16px;height:16px;border-radius:50%;background:#fff;position:absolute;top:2px;right:2px;transition:transform .2s}
+.toggle-track.on .toggle-thumb{transform:translateX(-18px)}
+.toggle-label{font-size:.85rem;color:var(--text2)}
+
+/* WAITING */
+#waiting{align-items:center;justify-content:center;gap:18px;padding:28px;overflow-y:auto}
+.room-code-box{background:var(--bg3);border:2px solid var(--border);border-radius:16px;padding:20px 32px;text-align:center;width:100%;max-width:320px}
+.room-code-box small{display:block;font-size:.72rem;letter-spacing:2px;color:var(--text3);margin-bottom:6px}
+.room-code-num{font-size:3rem;font-weight:900;letter-spacing:8px;color:var(--gold2)}
+.copy-btn{background:var(--gold-dim);border:1px solid var(--border);border-radius:8px;color:var(--gold);font-family:'Cairo',sans-serif;font-size:.78rem;padding:6px 14px;cursor:pointer;margin-top:8px}
+.players-list{width:100%;max-width:360px;background:var(--bg3);border:1px solid var(--border);border-radius:14px;padding:16px}
+.players-list h3{color:var(--gold);font-size:.8rem;letter-spacing:1px;margin-bottom:12px}
+.p-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border2)}
+.p-row:last-child{border-bottom:none}
+.p-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.p-red{background:var(--red2)}.p-blue{background:var(--blue2)}
+.p-name{font-size:.9rem;flex:1}
+.p-role{font-size:.72rem;color:var(--text3)}
+
+/* GAME */
+#game{background:var(--bg)}
+.topbar{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:10px 14px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0}
+.tb-team{text-align:center}
+.tb-label{font-size:.65rem;letter-spacing:1.5px;color:var(--text3);margin-bottom:2px}
+.tb-score{font-size:2rem;font-weight:900;line-height:1}
+.ts-red{color:var(--red2)}.ts-blue{color:var(--blue2)}
+.tb-mid{display:flex;flex-direction:column;align-items:center;gap:4px}
+.tb-turn{background:var(--gold-dim);border:1px solid var(--border);border-radius:16px;padding:4px 12px;font-size:.68rem;color:var(--gold);white-space:nowrap}
+.tb-phase{font-size:.62rem;color:var(--text3)}
+.hintstrip{display:flex;align-items:center;justify-content:center;gap:8px;padding:8px 14px;background:var(--bg3);border-bottom:1px solid var(--border);flex-shrink:0;min-height:42px}
+.hs-word{font-size:1.05rem;font-weight:700;color:var(--gold2)}
+.hs-num{background:var(--gold-dim);border:1px solid var(--border);border-radius:6px;padding:2px 10px;font-size:.85rem;font-weight:700;color:var(--gold)}
+.hs-wait{font-size:.82rem;color:var(--text3)}
+.myrole-bar{padding:6px 14px;background:rgba(0,0,0,.3);font-size:.72rem;color:var(--text3);text-align:center;flex-shrink:0}
+.myrole-bar strong{color:var(--text2)}
+.grid-scroll{flex:1;overflow-y:auto;padding:10px}
+.word-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.wc{aspect-ratio:3/2;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:clamp(.58rem,2.3vw,.82rem);font-weight:700;text-align:center;padding:4px;cursor:default;user-select:none;border:1.5px solid var(--border2);background:var(--nc);color:var(--text);transition:transform .12s,border-color .15s,box-shadow .15s;position:relative;overflow:hidden}
+.wc.clickable:hover{border-color:var(--gold);transform:scale(1.04);box-shadow:0 0 12px rgba(201,168,76,.2);cursor:pointer}
+.wc.clickable:active{transform:scale(.97)}
+.wc.sh-red{border-color:rgba(231,76,60,.6);background:rgba(192,57,43,.15)}
+.wc.sh-blue{border-color:rgba(41,128,185,.6);background:rgba(26,82,118,.15)}
+.wc.sh-neutral{border-color:var(--border2)}
+.wc.sh-assassin{border-color:rgba(80,0,0,.8);background:rgba(0,0,0,.5)}
+.wc.rev{cursor:default!important}
+.wc.rv-red{background:var(--red);border-color:var(--red2);color:#fff}
+.wc.rv-blue{background:var(--blue);border-color:var(--blue2);color:#fff}
+.wc.rv-neutral{background:var(--nr);border-color:#444;color:#888}
+.wc.rv-assassin{background:#080808;border-color:#111;color:#333}
+.wc.rv-assassin::after{content:'☠';position:absolute;font-size:1.4rem;color:#333}
+.wc.rv-assassin span{opacity:0}
+.bottombar{display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--bg2);border-top:1px solid var(--border);flex-shrink:0;flex-wrap:wrap}
+.bb-inp{flex:1;min-width:110px;background:rgba(255,255,255,.05);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:'Cairo',sans-serif;font-size:.95rem;padding:10px 12px;outline:none;transition:border-color .2s}
+.bb-inp:focus{border-color:var(--gold)}
+.bb-inp::placeholder{color:var(--text3)}
+.bb-sel{background:rgba(255,255,255,.05);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:'Cairo',sans-serif;font-size:.9rem;padding:10px 8px;outline:none;cursor:pointer}
+.bb-btn{font-family:'Cairo',sans-serif;font-weight:700;border:none;border-radius:8px;cursor:pointer;padding:10px 16px;font-size:.9rem;transition:transform .1s;white-space:nowrap}
+.bb-btn:active{transform:scale(.96)}
+.bb-give{background:var(--gold);color:#0f0e0b}
+.bb-pass{background:rgba(255,255,255,.05);color:var(--text2);border:1px solid var(--border2)}
+.bb-wait{background:rgba(255,255,255,.03);color:var(--text3);border:1px solid var(--border2);flex:1;text-align:center;padding:10px;border-radius:8px;font-size:.85rem}
+
+/* RESULT */
+#result{align-items:center;justify-content:center;gap:24px;padding:32px 24px;background:radial-gradient(ellipse 70% 50% at 50% 30%,#1a1810,#0f0e0b 70%)}
+.res-icon{font-size:5rem}
+.res-title{font-size:1.9rem;font-weight:900;color:var(--gold2);text-align:center}
+.res-scores{display:flex;gap:14px}
+.res-score{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:18px 24px;text-align:center;min-width:110px}
+.res-score .rname{font-size:.78rem;color:var(--text2);margin-bottom:4px}
+.res-score .rnum{font-size:2.2rem;font-weight:900}
+
+/* OVERLAY */
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.9);display:none;align-items:center;justify-content:center;z-index:300;padding:20px}
+.ov.show{display:flex}
+.ov-box{background:#1a1810;border:1px solid var(--border);border-radius:18px;padding:32px 24px;max-width:340px;width:100%;text-align:center;display:flex;flex-direction:column;align-items:center;gap:14px}
+.ov-icon{font-size:3.5rem}
+.ov-title{font-size:1.35rem;font-weight:900;color:var(--gold)}
+.ov-msg{color:var(--text2);font-size:.9rem;line-height:1.9}
+.ov-msg strong{color:var(--text)}
+.ov-btns{display:flex;gap:10px;width:100%}
+.ov-btns button{flex:1;font-family:'Cairo',sans-serif;font-weight:700;border:none;border-radius:9px;padding:12px;cursor:pointer;font-size:.9rem}
+.ov-primary{background:var(--gold);color:#0f0e0b}
+.ov-dim{background:rgba(255,255,255,.06);color:var(--text2);border:1px solid var(--border2)!important}
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:#1e1c14;border:1px solid var(--border);border-radius:10px;padding:10px 20px;font-size:.85rem;color:var(--text2);opacity:0;transition:all .3s;pointer-events:none;z-index:400;white-space:nowrap}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<!-- LOBBY -->
+<div id="lobby" class="screen active">
+  <div class="logo"><h1>🕵️ العملاء السريون</h1></div>
+
+  <div class="card">
+    <h3>🆕 إنشاء غرفة جديدة</h3>
+    <input class="inp" id="createName" placeholder="اسمك" />
+
+    <!-- Random toggle -->
+    <label class="random-toggle" onclick="toggleRandom('create')">
+      <div class="toggle-track" id="createRandomTrack"><div class="toggle-thumb"></div></div>
+      <span class="toggle-label">توزيع الأدوار عشوائي 🎲</span>
+    </label>
+
+    <div id="createRolesWrap">
+      <div class="role-grid" id="createRoles">
+        <div class="role-opt sel-red" data-role="red-cap" onclick="selectRole(this,'create')">
+          <div class="ri">🔴🕵️</div><div class="rl">قائد الأحمر</div><div class="rs">يشوف الخريطة</div>
+        </div>
+        <div class="role-opt" data-role="red" onclick="selectRole(this,'create')">
+          <div class="ri">🔴</div><div class="rl">فريق الأحمر</div><div class="rs">يخمّن</div>
+        </div>
+        <div class="role-opt" data-role="blue-cap" onclick="selectRole(this,'create')">
+          <div class="ri">🔵🕵️</div><div class="rl">قائد الأزرق</div><div class="rs">يشوف الخريطة</div>
+        </div>
+        <div class="role-opt" data-role="blue" onclick="selectRole(this,'create')">
+          <div class="ri">🔵</div><div class="rl">فريق الأزرق</div><div class="rs">يخمّن</div>
+        </div>
+      </div>
+    </div>
+    <button class="btn btn-gold" onclick="createRoom()">إنشاء الغرفة</button>
+  </div>
+
+  <div class="divider"><span>أو</span></div>
+
+  <div class="card">
+    <h3>🔗 انضم لغرفة موجودة</h3>
+    <input class="inp" id="joinCode" placeholder="كود الغرفة" maxlength="4" style="text-align:center;font-size:1.3rem;letter-spacing:4px;font-weight:700" />
+    <input class="inp" id="joinName" placeholder="اسمك" />
+
+    <label class="random-toggle" onclick="toggleRandom('join')">
+      <div class="toggle-track" id="joinRandomTrack"><div class="toggle-thumb"></div></div>
+      <span class="toggle-label">دور عشوائي 🎲</span>
+    </label>
+
+    <div id="joinRolesWrap">
+      <div class="role-grid" id="joinRoles">
+        <div class="role-opt sel-red" data-role="red-cap" onclick="selectRole(this,'join')">
+          <div class="ri">🔴🕵️</div><div class="rl">قائد الأحمر</div><div class="rs">يشوف الخريطة</div>
+        </div>
+        <div class="role-opt" data-role="red" onclick="selectRole(this,'join')">
+          <div class="ri">🔴</div><div class="rl">فريق الأحمر</div><div class="rs">يخمّن</div>
+        </div>
+        <div class="role-opt" data-role="blue-cap" onclick="selectRole(this,'join')">
+          <div class="ri">🔵🕵️</div><div class="rl">قائد الأزرق</div><div class="rs">يشوف الخريطة</div>
+        </div>
+        <div class="role-opt" data-role="blue" onclick="selectRole(this,'join')">
+          <div class="ri">🔵</div><div class="rl">فريق الأزرق</div><div class="rs">يخمّن</div>
+        </div>
+      </div>
+    </div>
+    <button class="btn btn-gold" onclick="joinRoom()">انضم</button>
+  </div>
+</div>
+
+<!-- WAITING -->
+<div id="waiting" class="screen">
+  <div class="room-code-box">
+    <small>كود الغرفة — شاركه مع أصحابك</small>
+    <div class="room-code-num" id="dispCode">----</div>
+    <button class="copy-btn" onclick="copyCode()">📋 نسخ الكود</button>
+  </div>
+  <div class="players-list">
+    <h3>اللاعبون في الغرفة</h3>
+    <div id="playersList"></div>
+  </div>
+  <button class="btn btn-gold" style="max-width:280px" onclick="startGame()">ابدأ اللعبة ⚡</button>
+  <p style="color:var(--text3);font-size:.75rem;text-align:center">فقط منشئ الغرفة يقدر يبدأ</p>
+</div>
+
+<!-- GAME -->
+<div id="game" class="screen">
+  <div class="topbar">
+    <div class="tb-team"><div class="tb-label">🔴 الأحمر</div><div class="tb-score ts-red" id="redLeft">٩</div></div>
+    <div class="tb-mid"><div class="tb-turn" id="turnPill">دور الأحمر</div><div class="tb-phase" id="phaseLbl"></div></div>
+    <div class="tb-team"><div class="tb-label">🔵 الأزرق</div><div class="tb-score ts-blue" id="blueLeft">٨</div></div>
+  </div>
+  <div class="hintstrip">
+    <div class="hs-wait" id="hsWait">انتظر التلميح...</div>
+    <div class="hs-word hidden" id="hsWord"></div>
+    <div class="hs-num hidden" id="hsNum"></div>
+  </div>
+  <div class="myrole-bar" id="myRoleBar"></div>
+  <div class="grid-scroll"><div class="word-grid" id="wordGrid"></div></div>
+  <div class="bottombar hidden" id="capBar">
+    <input class="bb-inp" id="hintInp" placeholder="كلمة التلميح..." />
+    <select class="bb-sel" id="hintN">
+      <option value="1">١</option><option value="2" selected>٢</option>
+      <option value="3">٣</option><option value="4">٤</option>
+      <option value="5">٥</option><option value="0">♾</option>
+    </select>
+    <button class="bb-btn bb-give" onclick="sendHint()">أعطِ</button>
+  </div>
+  <div class="bottombar hidden" id="guessBar">
+    <button class="bb-btn bb-pass" onclick="sendPass()">⏭ خلاص، دورهم</button>
+  </div>
+  <div class="bottombar" id="waitBar">
+    <div class="bb-wait" id="waitMsg">انتظر...</div>
+  </div>
+</div>
+
+<!-- RESULT -->
+<div id="result" class="screen">
+  <div class="res-icon" id="resIcon">🏆</div>
+  <div class="res-title" id="resTitle"></div>
+  <div class="res-scores">
+    <div class="res-score"><div class="rname">🔴 الأحمر</div><div class="rnum ts-red" id="resR"></div></div>
+    <div class="res-score"><div class="rname">🔵 الأزرق</div><div class="rnum ts-blue" id="resB"></div></div>
+  </div>
+  <button class="btn btn-gold" style="max-width:280px" onclick="sendRestart()">🔄 لعبة جديدة</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let ws, myRole, myId, roomCode, isCreator=false;
+let createRandom=false, joinRandom=false;
+let selectedCreate='red-cap', selectedJoin='red-cap';
+const arN=n=>n===999?'♾':n.toString().replace(/\d/g,d=>'٠١٢٣٤٥٦٧٨٩'[d]);
+
+function toggleRandom(which){
+  if(which==='create'){
+    createRandom=!createRandom;
+    document.getElementById('createRandomTrack').classList.toggle('on',createRandom);
+    document.getElementById('createRolesWrap').style.display=createRandom?'none':'block';
+  } else {
+    joinRandom=!joinRandom;
+    document.getElementById('joinRandomTrack').classList.toggle('on',joinRandom);
+    document.getElementById('joinRolesWrap').style.display=joinRandom?'none':'block';
+  }
+}
+
+function selectRole(el,which){
+  const grid=document.getElementById(which==='create'?'createRoles':'joinRoles');
+  grid.querySelectorAll('.role-opt').forEach(o=>o.classList.remove('sel-red','sel-blue'));
+  const role=el.dataset.role;
+  el.classList.add(role.startsWith('red')?'sel-red':'sel-blue');
+  if(which==='create') selectedCreate=role;
+  else selectedJoin=role;
+}
+
+function connect(cb){
+  if(ws && ws.readyState===1){ cb(); return; }
+  const proto=location.protocol==='https:'?'wss':'ws';
+  ws=new WebSocket(`${proto}://${location.host}`);
+  ws.onopen=()=>{ setTimeout(cb, 100); };
+  ws.onmessage=e=>handle(JSON.parse(e.data));
+  ws.onerror=()=>showToast('خطأ في الاتصال');
+  ws.onclose=()=>{ ws=null; showToast('انقطع الاتصال...'); };
+}
+
+function send(obj){if(ws&&ws.readyState===1)ws.send(JSON.stringify(obj))}
+
+function createRoom(){
+  const name=document.getElementById('createName').value.trim();
+  if(!name){document.getElementById('createName').focus();return}
+  connect(()=>{
+    send({type:'create',name,role:createRandom?'random':selectedCreate});
+    myRole=createRandom?'random':selectedCreate;
+    isCreator=true;
+  });
+}
+
+function joinRoom(){
+  const code=document.getElementById('joinCode').value.trim().toUpperCase();
+  const name=document.getElementById('joinName').value.trim();
+  if(!code||!name){showToast('أدخل الكود والاسم');return}
+  connect(()=>{
+    send({type:'join',code,name,role:joinRandom?'random':selectedJoin});
+    myRole=joinRandom?'random':selectedJoin;
+    isCreator=false;
+  });
+}
+
+function handle(msg){
+  if(msg.type==='created'){
+    myId=msg.playerId; roomCode=msg.code;
+    document.getElementById('dispCode').textContent=msg.code;
+    showScreen('waiting');
+  }
+  else if(msg.type==='joined'){
+    myId=msg.playerId; roomCode=msg.code;
+    document.getElementById('dispCode').textContent=msg.code;
+    showScreen('waiting');
+  }
+  else if(msg.type==='error'){showToast(msg.msg)}
+  else if(msg.type==='state'){
+    const s=msg.state;
+    myRole=s.myRole;
+    if(s.phase==='waiting'){
+      updateWaiting(s);
+      showScreen('waiting');
+    } else if(s.winner){
+      renderResult(s);showScreen('result');
+    } else if(s.phase==='hint'||s.phase==='guess'){
+      renderGame(s);showScreen('game');
+    }
+  }
+}
+
+function updateWaiting(s){
+  const list=document.getElementById('playersList');
+  list.innerHTML='';
+  const roleLabel={'red-cap':'قائد الأحمر 🕵️','red':'فريق الأحمر','blue-cap':'قائد الأزرق 🕵️','blue':'فريق الأزرق'};
+  Object.entries(s.players).forEach(([id,p])=>{
+    const row=document.createElement('div');
+    row.className='p-row';
+    const dotClass=p.role.startsWith('red')?'p-red':'p-blue';
+    row.innerHTML=`<div class="p-dot ${dotClass}"></div><div class="p-name">${p.name}</div><div class="p-role">${roleLabel[p.role]||p.role}</div>${id===myId?'<span style="font-size:.7rem;color:var(--gold);background:var(--gold-dim);padding:2px 8px;border-radius:10px">أنت</span>':''}`;
+    list.appendChild(row);
+  });
+}
+
+function copyCode(){
+  const code=document.getElementById('dispCode').textContent;
+  navigator.clipboard.writeText(code).then(()=>showToast('تم نسخ الكود ✓')).catch(()=>showToast(code));
+}
+
+function startGame(){
+  if(!isCreator){showToast('بس منشئ الغرفة يقدر يبدأ');return}
+  send({type:'restart'});
+}
+
+function renderGame(s){
+  document.getElementById('redLeft').textContent=arN(s.redLeft);
+  document.getElementById('blueLeft').textContent=arN(s.blueLeft);
+  const tname=s.team==='red'?'🔴 الأحمر':'🔵 الأزرق';
+  document.getElementById('turnPill').textContent='دور '+tname;
+  const isMyCap=(s.team==='red'&&s.myRole==='red-cap')||(s.team==='blue'&&s.myRole==='blue-cap');
+  const isMyTeamGuesser=(s.team===s.myRole);
+  const roleLabels={'red-cap':'أنت قائد الأحمر 🔴🕵️','red':'أنت في فريق الأحمر 🔴','blue-cap':'أنت قائد الأزرق 🔵🕵️','blue':'أنت في فريق الأزرق 🔵'};
+  document.getElementById('myRoleBar').innerHTML=`<strong>${roleLabels[s.myRole]||''}</strong>`;
+  if(s.phase==='hint'){
+    document.getElementById('phaseLbl').textContent=isMyCap?'دورك — أعطِ تلميح':'انتظر تلميح القائد';
+    document.getElementById('hsWait').classList.remove('hidden');
+    document.getElementById('hsWord').classList.add('hidden');
+    document.getElementById('hsNum').classList.add('hidden');
+  } else {
+    document.getElementById('phaseLbl').textContent=isMyTeamGuesser?'دورك — اختر كلمة':'انتظر الفريق الثاني';
+    document.getElementById('hsWait').classList.add('hidden');
+    document.getElementById('hsWord').classList.remove('hidden');
+    document.getElementById('hsNum').classList.remove('hidden');
+    document.getElementById('hsWord').textContent='"'+s.hint+'"';
+    document.getElementById('hsNum').textContent=arN(s.guessLeft)+' متبقي';
+  }
+  document.getElementById('capBar').classList.add('hidden');
+  document.getElementById('guessBar').classList.add('hidden');
+  document.getElementById('waitBar').classList.add('hidden');
+  if(s.phase==='hint'&&isMyCap){
+    document.getElementById('capBar').classList.remove('hidden');
+    document.getElementById('hintInp').value='';
+  } else if(s.phase==='guess'&&isMyTeamGuesser){
+    document.getElementById('guessBar').classList.remove('hidden');
+  } else {
+    document.getElementById('waitBar').classList.remove('hidden');
+    document.getElementById('waitMsg').textContent=s.phase==='hint'?'القائد يفكر في التلميح...':'الفريق الثاني يخمّن...';
+  }
+  buildGrid(s);
+}
+
+function buildGrid(s){
+  const grid=document.getElementById('wordGrid');
+  grid.innerHTML='';
+  const isCap=s.myRole==='red-cap'||s.myRole==='blue-cap';
+  const isMyTeamGuesser=s.team===s.myRole&&s.phase==='guess';
+  s.words.forEach((w,i)=>{
+    const el=document.createElement('div');
+    el.className='wc';
+    el.innerHTML='<span>'+w+'</span>';
+    if(s.revealed[i]){
+      el.classList.add('rev','rv-'+s.types[i]);
+    } else {
+      if(isCap&&s.types) el.classList.add('sh-'+s.types[i]);
+      if(isMyTeamGuesser){el.classList.add('clickable');el.onclick=()=>send({type:'guess',index:i})}
+    }
+    grid.appendChild(el);
+  });
+}
+
+function sendHint(){
+  const w=document.getElementById('hintInp').value.trim();
+  if(!w){document.getElementById('hintInp').focus();return}
+  const n=parseInt(document.getElementById('hintN').value)||0;
+  send({type:'hint',word:w,n});
+}
+function sendPass(){send({type:'pass'})}
+function sendRestart(){send({type:'restart'})}
+
+function renderResult(s){
+  const icon=s.winner==='red'?'🔴':'🔵';
+  document.getElementById('resIcon').textContent='🏆';
+  document.getElementById('resTitle').textContent=`الفريق ${s.winner==='red'?'الأحمر 🔴':'الأزرق 🔵'} يفوز!`;
+  document.getElementById('resR').textContent=arN(s.redLeft)+' باقي';
+  document.getElementById('resB').textContent=arN(s.blueLeft)+' باقي';
+}
+
+function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active')}
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500)}
+</script>
+</body>
+</html>
