@@ -290,11 +290,13 @@ function selectRole(el,which){
 }
 
 function connect(cb){
+  if(ws && ws.readyState===1){ cb(); return; }
   const proto=location.protocol==='https:'?'wss':'ws';
   ws=new WebSocket(`${proto}://${location.host}`);
-  ws.onopen=cb;
+  ws.onopen=()=>{ setTimeout(cb, 100); };
   ws.onmessage=e=>handle(JSON.parse(e.data));
-  ws.onclose=()=>showToast('انقطع الاتصال...');
+  ws.onerror=()=>showToast('خطأ في الاتصال');
+  ws.onclose=()=>{ ws=null; showToast('انقطع الاتصال...'); };
 }
 
 function send(obj){if(ws&&ws.readyState===1)ws.send(JSON.stringify(obj))}
