@@ -418,7 +418,10 @@ function buildGrid(s){
     el.className='wc';
     el.innerHTML='<span>'+w+'</span>';
     if(s.revealed[i]){
-      el.classList.add('rev','rv-'+s.types[i]);
+      // revealedTypes is sent to all players for revealed cards only
+      const t=s.revealedTypes?s.revealedTypes[i]:null;
+      if(t) el.classList.add('rev','rv-'+t);
+      else el.classList.add('rev','rv-neutral');
     } else {
       if(isCap&&s.types) el.classList.add('sh-'+s.types[i]);
       if(isMyTeamGuesser){el.classList.add('clickable');el.onclick=()=>send({type:'guess',index:i})}
