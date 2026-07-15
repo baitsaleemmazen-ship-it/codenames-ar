@@ -440,11 +440,18 @@ function sendPass(){send({type:'pass'})}
 function sendRestart(){send({type:'restart'})}
 
 function renderResult(s){
-  const icon=s.winner==='red'?'🔴':'🔵';
   document.getElementById('resIcon').textContent='🏆';
   document.getElementById('resTitle').textContent=`الفريق ${s.winner==='red'?'الأحمر 🔴':'الأزرق 🔵'} يفوز!`;
   document.getElementById('resR').textContent=arN(s.redLeft)+' باقي';
   document.getElementById('resB').textContent=arN(s.blueLeft)+' باقي';
+  // برافو شرفتونا
+  const existing=document.getElementById('bravoMsg');
+  if(existing)existing.remove();
+  const msg=document.createElement('div');
+  msg.id='bravoMsg';
+  msg.style.cssText='text-align:center;font-size:1.3rem;font-weight:900;color:var(--gold2);padding:6px 0';
+  msg.textContent='برافو برافو شرفتونا 🙏✨';
+  document.getElementById('resTitle').after(msg);
 }
 
 function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active')}
