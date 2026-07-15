@@ -77,9 +77,13 @@ function roomState(room, playerId) {
   const role = g.players[playerId]?.role || 'red';
   const isCap = role === 'red-cap' || role === 'blue-cap';
 
+  // Build revealedTypes — only show type for cards already revealed
+  const revealedTypes = g.types.map((t, i) => g.revealed[i] ? t : null);
+
   return {
     words: g.words,
-    types: isCap ? g.types : null, // only captains see types
+    types: isCap ? g.types : null,
+    revealedTypes, // all players see types of already-revealed cards
     revealed: g.revealed,
     team: g.team,
     redLeft: g.redLeft,
