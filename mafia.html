@@ -409,7 +409,9 @@ function handleMsg(msg){
   else if(msg.type==='mafia_role'){myRole=msg.role;showRoleReveal(msg.role,msg.mafiaTeam)}
   else if(msg.type==='mafia_state'){G=msg.state;renderGame()}
   else if(msg.type==='mafia_dead'){showDeadInfo(msg)}
+  else if(msg.type==='mafia_doctor_saved'){showDoctorSaved(msg)}
   else if(msg.type==='mafia_detective'){toast(msg.text)}
+  else if(msg.type==='mafia_chat_msg'){showMafiaChat(msg)}
   else if(msg.type==='mafia_end'){showResult(msg)}
   else if(msg.type==='error'){toast(msg.msg)}
 }
@@ -505,7 +507,7 @@ function renderNight(scroll,me){
     scroll.appendChild(w);return;
   }
   const titles={mafia:'🔫 اختر الضحية',detective:'🔍 من تحقق عنه؟',doctor:'💊 من تحمي؟',guard:'🛡️ من تنقذ؟'};
-  const subs={mafia:'اختر مع فريقك من تصفونه الليلة',detective:'اختر لاعباً لمعرفة هويته',doctor:'اختر لاعباً لحمايته',guard:G.guardUsed?'استخدمت قدرتك مسبقاً':'مرة وحدة — اختر من تنقذ'};
+  const subs={mafia:'تشاور مع فريقك في الشات السري ثم اختر الضحية',detective:'اختر لاعباً لمعرفة هويته',doctor:'اختر لاعباً لحمايته',guard:G.guardUsed?'استخدمت قدرتك مسبقاً':'مرة وحدة — اختر من تنقذ'};
   const box=document.createElement('div');
   box.className='action-box';
   box.innerHTML=`<div class="action-title">${titles[role]||''}</div><div class="action-sub">${subs[role]||''}</div><div id="nightGrid"></div><button class="confirm-btn" id="nightConfirmBtn" onclick="confirmNight()" disabled>تأكيد الاختيار</button>`;
@@ -531,6 +533,39 @@ function renderNight(scroll,me){
     const cb=document.getElementById('nightConfirmBtn');
     if(cb){cb.disabled=true;cb.textContent='استخدمت قدرتك'}
   }
+
+  // Mafia secret chat
+  if(role==='mafia'){
+    const chatBox=document.createElement('div');
+    chatBox.className='action-box';
+    chatBox.style.marginTop='12px';
+    chatBox.innerHTML=`
+      <div class="action-title">🔫 شات المافيا السري</div>
+      <div id="mafiaChatMsgs" style="min-height:60px;max-height:150px;overflow-y:auto;margin-bottom:10px;display:flex;flex-direction:column;gap:6px"></div>
+      <div style="display:flex;gap:8px">
+        <input id="mafiaChatInp" class="inp" style="margin:0;flex:1" placeholder="اكتب رسالة..." />
+        <button onclick="sendMafiaChat()" style="background:var(--red2);color:#fff;font-family:'Cairo',sans-serif;font-weight:700;border:none;border-radius:8px;padding:10px 14px;cursor:pointer;white-space:nowrap">إرسال</button>
+      </div>
+    `;
+    scroll.appendChild(chatBox);
+  }
+}
+
+function sendMafiaChat(){
+  const inp=document.getElementById('mafiaChatInp');
+  if(!inp||!inp.value.trim())return;
+  send({type:'mafia_chat',text:inp.value.trim()});
+  inp.value='';
+}
+
+function showMafiaChat(msg){
+  const container=document.getElementById('mafiaChatMsgs');
+  if(!container)return;
+  const bubble=document.createElement('div');
+  bubble.style.cssText='background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.2);border-radius:8px;padding:8px 10px;font-size:.82rem';
+  bubble.innerHTML=`<span style="color:var(--red2);font-weight:700">${msg.from}:</span> <span style="color:var(--text2)">${msg.text}</span>`;
+  container.appendChild(bubble);
+  container.scrollTop=container.scrollHeight;
 }
 
 function confirmNight(){
@@ -601,7 +636,22 @@ function confirmVote(){
 function scrollBottom(){const s=document.getElementById('gameScroll');setTimeout(()=>s.scrollTop=s.scrollHeight,100)}
 
 function showDeadInfo(msg){
-  toast(`💀 ${msg.name} مات — كان ${ROLE_DATA[msg.role]?.name||msg.role}`);
+  toast(`ودعجن ودعجن 👋 ${msg.name} — كان ${ROLE_DATA[msg.role]?.name||msg.role}`);
+}
+
+function showDoctorSaved(msg){
+  // Show big celebration notification
+  const overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;z-index:500;padding:20px';
+  overlay.innerHTML=`
+    <div style="background:#0d1f0d;border:2px solid #27ae60;border-radius:18px;padding:32px 24px;max-width:320px;width:100%;text-align:center">
+      <div style="font-size:4rem;margin-bottom:12px">🎉</div>
+      <div style="font-size:1.8rem;font-weight:900;color:#27ae60;margin-bottom:8px">برافو برافو برافو!</div>
+      <div style="font-size:.9rem;color:#9a8f6f;line-height:1.8">${msg.text}</div>
+      <button onclick="this.closest('div[style]').remove()" style="margin-top:16px;background:#27ae60;color:#fff;font-family:'Cairo',sans-serif;font-weight:700;border:none;border-radius:9px;padding:12px 32px;font-size:1rem;cursor:pointer">يسلمووو 🙏</button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
 }
 
 function showResult(msg){
