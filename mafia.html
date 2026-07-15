@@ -477,7 +477,7 @@ function renderGame(){
   if(!me.alive){
     const d=document.createElement('div');
     d.className='dead-banner';
-    d.innerHTML='<div style="font-size:2rem;margin-bottom:6px">💀</div><div style="font-size:.85rem;color:var(--text2)">ودعجن ودعجن — شاهد بصمت</div>';
+    d.innerHTML='<div style="font-size:2rem;margin-bottom:6px">😢</div><div style="font-size:.85rem;color:var(--text2)">ودجاعن ودجاعن — شاهد بصمت</div>';
     scroll.appendChild(d);
     scrollBottom();return;
   }
@@ -627,14 +627,15 @@ function confirmVote(){
 function scrollBottom(){const s=document.getElementById('gameScroll');setTimeout(()=>s.scrollTop=s.scrollHeight,100)}
 
 function showDeadInfo(msg){
-  toast(`ودعجن ودعجن 👋 ${msg.name} — كان ${ROLE_DATA[msg.role]?.name||msg.role}`);
+  toast(`ودجاعن ودجاعن 😢 ${msg.name} — كان ${ROLE_DATA[msg.role]?.name||msg.role}`);
 }
 
 function showDoctorSaved(msg){
   const ov=document.createElement('div');
-  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.88);display:flex;align-items:center;justify-content:center;z-index:500;padding:20px';
-  ov.innerHTML=`<div style="background:#0d1f0d;border:2px solid #27ae60;border-radius:18px;padding:32px 24px;max-width:300px;width:100%;text-align:center"><div style="font-size:4rem;margin-bottom:10px">🎉</div><div style="font-size:1.8rem;font-weight:900;color:#27ae60;margin-bottom:8px">برافو برافو برافو!</div><div style="font-size:.88rem;color:var(--text2);line-height:1.8;margin-bottom:16px">${msg.text}</div><button onclick="this.closest('div[style]').remove()" style="background:#27ae60;color:#fff;font-family:'Cairo',sans-serif;font-weight:700;border:none;border-radius:9px;padding:12px 32px;font-size:1rem;cursor:pointer">يسلمووو 🙏</button></div>`;
+  ov.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#0d1f0d;border:2px solid #27ae60;border-radius:18px;padding:28px 24px;max-width:300px;width:90%;text-align:center;z-index:500;box-shadow:0 0 40px rgba(39,174,96,0.3)';
+  ov.innerHTML=`<div style="font-size:3.5rem;margin-bottom:10px">🎉</div><div style="font-size:1.6rem;font-weight:900;color:#27ae60;margin-bottom:8px">برافو برافو برافو!</div><div style="font-size:.85rem;color:var(--text2);line-height:1.8;margin-bottom:16px">${msg.text}</div><button onclick="this.parentElement.remove()" style="background:#27ae60;color:#fff;font-family:'Cairo',sans-serif;font-weight:700;border:none;border-radius:9px;padding:11px 28px;font-size:.95rem;cursor:pointer;touch-action:manipulation">يسلمووو 🙏</button>`;
   document.body.appendChild(ov);
+  setTimeout(()=>ov.remove(),6000);
 }
 
 function showResult(msg){
@@ -647,6 +648,13 @@ function showResult(msg){
     list.innerHTML+=`<div class="rev-row"><div class="rev-name">${p.alive?'':'💀 '}${p.name}</div><div class="rev-role ${RT[p.role]||'rt-citizen'}">${rd.icon} ${rd.name}</div></div>`;
   });
   showScreen('result');
+  // شرفتونا
+  setTimeout(()=>{
+    const t=document.createElement('div');
+    t.style.cssText='text-align:center;font-size:1.4rem;font-weight:900;color:var(--gold2);padding:10px 0';
+    t.textContent='شرفتونا شرفتونا 🙏✨';
+    document.getElementById('result').insertBefore(t,document.querySelector('.btn-go'));
+  },300);
 }
 </script>
 </body>
