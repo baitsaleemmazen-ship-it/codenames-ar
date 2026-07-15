@@ -229,6 +229,15 @@ async function processNightEnd(room){
       if(doctorAction===mafiaAction||guardAction===mafiaAction){
         saved=true;
         if(guardAction===mafiaAction) room.guardUsed=true;
+        // Notify doctor "برافو برافو برافو"
+        if(doctorAction===mafiaAction){
+          wss.clients.forEach(client=>{
+            const cp=room.players.find(p=>p.id===client._mafia?.playerId&&p.role==='doctor');
+            if(cp&&client._mafia?.code===room.code&&client.readyState===1){
+              client.send(JSON.stringify({type:'mafia_doctor_saved',text:'برافو برافو برافو 🎉 نجحت في إنقاذ الضحية الليلة!'}));
+            }
+          });
+        }
       } else {
         target.alive=false;
         killed=target;
@@ -272,7 +281,7 @@ async function processNightEnd(room){
 
   await aiMessage(room,
     `أنت هوست لعبة مافيا بالعربي. الصباح جاء. ${summary}
-    اكتب إعلان الصباح بأسلوب درامي (٢-٣ جمل). ${killed?`اذكر أن ${killed.name} وُجد ميتاً.`:'قل أن الجميع استيقظ بأمان.'}`
+    اكتب إعلان الصباح بأسلوب درامي (٢-٣ جمل). ${killed?`اذكر أن ${killed.name} وُجد ميتاً، واختم بـ"ودعجن ودعجن" بأسلوب مسرحي.`:'قل أن الجميع استيقظ بأمان.'}`
   );
 
   // Check win
@@ -424,6 +433,20 @@ wss.on('connection', ws => {
         const p = room.players.find(x => x.id === pid);
         if (p) p.ready = true;
         if (room.players.every(x => x.ready) && room.phase === 'roles') await startNight(room);
+      }
+
+      else if (msg.type === 'mafia_chat') {
+        const room = mafiaRooms[ws._mafia.code];
+        if (!room || room.phase !== 'night') return;
+        const me = room.players.find(p => p.id === pid);
+        if (!me || !me.alive || me.role !== 'mafia') return;
+        // Send to all mafia members only
+        wss.clients.forEach(client => {
+          const cp = room.players.find(p => p.id === client._mafia?.playerId && p.role === 'mafia');
+          if (cp && client._mafia?.code === room.code && client.readyState === 1) {
+            client.send(JSON.stringify({ type: 'mafia_chat_msg', from: me.name, text: msg.text }));
+          }
+        });
       }
 
       else if (msg.type === 'mafia_night_action') {
