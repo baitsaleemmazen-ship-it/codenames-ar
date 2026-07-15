@@ -369,7 +369,22 @@ wss.on('connection', ws => {
     if (msg.type?.startsWith('mafia_')) {
       const pid = ws._mafia.playerId;
 
-      if (msg.type === 'mafia_create') {
+      if (msg.type === 'mafia_create_room') {
+        // New flow: creator just creates room, players join with their own names
+        const code = genMafiaCode();
+        const creatorName = msg.name || 'المنشئ';
+        mafiaRooms[code] = {
+          code, phase: 'waiting', round: 1,
+          messages: [], votes: {}, voteCount: {},
+          guardUsed: false, hostId: pid, nightActions: {},
+          players: [{ id: pid, name: creatorName, alive: true, ready: false, connected: true }]
+        };
+        ws._mafia.code = code;
+        ws.send(JSON.stringify({ type: 'mafia_created', code, playerId: pid }));
+        ws.send(JSON.stringify({ type: 'mafia_waiting', players: mafiaRooms[code].players.map(p=>({id:p.id,name:p.name})) }));
+      }
+
+      else if (msg.type === 'mafia_create') {
         const names = msg.names || [];
         if (names.length < 3) return ws.send(JSON.stringify({ type: 'error', msg: 'أقل عدد ٣ لاعبين' }));
         const code = genMafiaCode();
@@ -396,35 +411,43 @@ wss.on('connection', ws => {
         const code = msg.code?.toUpperCase();
         if (!mafiaRooms[code]) return ws.send(JSON.stringify({ type: 'error', msg: 'الغرفة مو موجودة' }));
         const room = mafiaRooms[code];
-        // find unassigned player slot by name match
-        let player = room.players.find(p => p.name === msg.name && !p.connected);
-        if (!player) player = room.players.find(p => !p.connected);
-        if (player) {
-          player.id = pid;
-          player.connected = true;
-        }
+        if (room.phase !== 'waiting') return ws.send(JSON.stringify({ type: 'error', msg: 'اللعبة بدأت بالفعل' }));
+        // Add player
+        const newPlayer = { id: pid, name: msg.name || 'لاعب', alive: true, ready: false, connected: true };
+        room.players.push(newPlayer);
         ws._mafia.code = code;
         ws.send(JSON.stringify({ type: 'mafia_joined', code, playerId: pid }));
-        ws.send(JSON.stringify({ type: 'mafia_waiting', players: room.players.map(p => ({ id: p.id, name: p.name })) }));
+        // Broadcast updated player list to everyone
+        wss.clients.forEach(client => {
+          if (client._mafia?.code === code && client.readyState === 1) {
+            client.send(JSON.stringify({ type: 'mafia_waiting', players: room.players.map(p=>({id:p.id,name:p.name})) }));
+          }
+        });
       }
 
       else if (msg.type === 'mafia_start') {
         const room = mafiaRooms[ws._mafia.code];
         if (!room || room.hostId !== pid) return;
+        // Build roles array from counts
+        let roles = [];
+        const rc = msg.roles || { mafia:2, detective:1, doctor:1, citizen: Math.max(0, room.players.length-4) };
+        Object.entries(rc).forEach(([role, count]) => {
+          for (let i = 0; i < count; i++) roles.push(role);
+        });
+        roles = shuffle(roles);
+        // Assign randomly
+        const shuffled = shuffle([...room.players]);
+        shuffled.forEach((p, i) => { p.role = roles[i] || 'citizen'; });
         room.phase = 'roles';
+        const mafiaNames = room.players.filter(p => p.role === 'mafia').map(p => p.name);
         room.players.forEach(p => {
-          const mafiaTeam = p.role === 'mafia' ? room.players.filter(x => x.role === 'mafia').map(x => x.name) : [];
+          const mt = p.role === 'mafia' ? mafiaNames : [];
           wss.clients.forEach(client => {
             if (client._mafia?.playerId === p.id && client.readyState === 1) {
-              client.send(JSON.stringify({ type: 'mafia_role', role: p.role, mafiaTeam }));
+              client.send(JSON.stringify({ type: 'mafia_role', role: p.role, mafiaTeam: mt }));
             }
           });
         });
-        const me = room.players.find(p => p.id === pid);
-        if (me) {
-          const mafiaTeam = me.role === 'mafia' ? room.players.filter(x => x.role === 'mafia').map(x => x.name) : [];
-          ws.send(JSON.stringify({ type: 'mafia_role', role: me.role, mafiaTeam }));
-        }
       }
 
       else if (msg.type === 'mafia_ready') {
